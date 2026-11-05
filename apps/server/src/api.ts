@@ -402,15 +402,15 @@ const providerSchema = z.object({
   installed: z.boolean(),
   authenticated: z.boolean(),
   version: z.string().max(80).nullable().optional(),
-  capabilities: z.record(z.boolean()).default({}),
-  executionPolicy: z.record(z.unknown()).default({}),
-  usageStatus: z.record(z.unknown()).default({}),
+  capabilities: z.record(z.string(), z.boolean()).default({}),
+  executionPolicy: z.record(z.string(), z.unknown()).default({}),
+  usageStatus: z.record(z.string(), z.unknown()).default({}),
 });
 const agentHeartbeatSchema = z.object({
   platform: z.string().max(60).optional(),
   engineVersion: z.string().max(40).optional(),
   maxConcurrency: z.number().int().min(1).max(8).default(1),
-  systemInfo: z.record(z.unknown()).default({}),
+  systemInfo: z.record(z.string(), z.unknown()).default({}),
   providers: z.array(providerSchema).max(20).default([]),
 });
 const eventsSchema = z.object({

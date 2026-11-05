@@ -135,7 +135,9 @@ async function happyPath() {
   assert.equal(d.artifacts.length, 1);
   const art = d.artifacts[0];
   const { url } = await api('POST', `/api/artifacts/${art.id}/link`, s.token);
-  const buf = Buffer.from(await (await fetch(BASE + url)).arrayBuffer());
+  const dlRes = await fetch(BASE + url);
+  assert.match(dlRes.headers.get('content-disposition'), /^attachment; filename="download\.zip"; filename\*=UTF-8''.+-source-[0-9a-f]{8}\.zip$/);
+  const buf = Buffer.from(await dlRes.arrayBuffer());
   assert.equal(createHash('sha256').update(buf).digest('hex'), art.sha256);
   assert.equal(buf.length, Number(art.size));
   const zip = path.join(TMP, 'happy.zip');

@@ -85,7 +85,7 @@ export const completeSchema = z.object({
   gitAfter: z.string().max(80).optional(),
   workspacePath: z.string().max(1000).optional(),
   changedFiles: z.array(z.string().max(1000)).max(5000).default([]),
-  files: z.record(z.object({ exists: z.boolean(), content: z.string().max(400_000).optional() })).default({}),
+  files: z.record(z.string(), z.object({ exists: z.boolean(), content: z.string().max(400_000).optional() })).default({}),
   tests: z
     .array(
       z.object({

@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "EUM AI SOFTWARE FACTORY PRO — 구독형 멀티 AI 기반 소프트웨어 자동 제작 플랫폼",
-  "workspaces": ["apps/server", "apps/engine", "apps/web"],
+  "workspaces": [
+    "apps/server",
+    "apps/engine",
+    "apps/web"
+  ],
   "scripts": {
     "build": "npm run build -w apps/server && npm run build -w apps/engine && npm run build -w apps/web",
     "build:server": "npm run build -w apps/server",
@@ -13,5 +17,10 @@
     "test:e2e": "node tests/e2e.mjs",
     "start": "node apps/server/dist/src/main.js"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  },
+  "overrides": {
+    "multer": "^2.5.0"
+  }
 }
