@@ -24,6 +24,9 @@ export interface EngineConfig {
   mockScenario?: string;
   mockDelayMs?: number;
   codex?: { binary?: string; model?: string };
+  claude?: { binary?: string; model?: string };
+  /** mode: accept-edits(기본, 파일 수정만 자동 승인) | auto(샌드박스 안에서 명령도 자동 실행) */
+  antigravity?: { binary?: string; model?: string; mode?: string };
 }
 
 export function engineHome(): string {

@@ -1,4 +1,6 @@
 import * as os from 'os';
+import { AntigravityAdapter } from './adapters/antigravity';
+import { ClaudeCodeAdapter } from './adapters/claude';
 import { CodexAdapter } from './adapters/codex';
 import { MockAdapter } from './adapters/mock';
 import { ProviderAdapter } from './adapters/types';
@@ -28,6 +30,8 @@ export interface EngineStatus {
 export function buildAdapters(cfg: EngineConfig): Map<string, ProviderAdapter> {
   const m = new Map<string, ProviderAdapter>();
   m.set('codex', new CodexAdapter({ ...cfg.codex, allowMeteredApi: cfg.allowMeteredApi }));
+  m.set('claude', new ClaudeCodeAdapter({ ...cfg.claude, allowMeteredApi: cfg.allowMeteredApi }));
+  m.set('antigravity', new AntigravityAdapter({ ...cfg.antigravity, allowMeteredApi: cfg.allowMeteredApi }));
   if (cfg.enableMock) m.set('mock', new MockAdapter({ scenario: cfg.mockScenario, delayMs: cfg.mockDelayMs }));
   return m;
 }

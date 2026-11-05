@@ -125,3 +125,26 @@ export function run(cmd: string, args: string[], opts: RunOpts): Promise<RunResu
     child.stdin!.end();
   });
 }
+
+const METERED_KEYS = /^(ANTHROPIC_API_KEY|ANTHROPIC_AUTH_TOKEN|OPENAI_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY|GOOGLE_GENAI_API_KEY)$/i;
+
+/**
+ * AI 도구에 넘길 환경변수. 종량제 사용을 허용하지 않았다면 API 키 환경변수를 제거해,
+ * 도구가 구독 로그인 대신 API 키(요금 발생)로 동작하는 일을 막습니다.
+ */
+export function aiEnv(allowMeteredApi: boolean): NodeJS.ProcessEnv {
+  const env = safeEnv();
+  if (!allowMeteredApi) for (const k of Object.keys(env)) if (METERED_KEYS.test(k)) delete env[k];
+  return env;
+}
+
+/**
+ * CLI 실행 방법을 정합니다. Windows 에서 npm 전역 설치본은 .cmd 파일이라 셸을 거쳐야 하므로,
+ * 그 경우 공백·특수문자가 있는 인자를 큰따옴표로 감쌉니다. 인자는 모두 엔진이 정한 값이어야 합니다.
+ */
+export function cliInvocation(binary: string, args: string[], forceNoShell = false): { cmd: string; args: string[]; shell: boolean } {
+  const needsShell = process.platform === 'win32' && !forceNoShell && !/\.exe$/i.test(binary);
+  if (!needsShell) return { cmd: binary, args, shell: false };
+  const quote = (a: string) => (/^[\w.\-:=\/\\]+$/.test(a) ? a : `"${a.replace(/"/g, '\\"')}"`);
+  return { cmd: quote(binary), args: args.map(quote), shell: true };
+}

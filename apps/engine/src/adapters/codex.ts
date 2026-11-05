@@ -1,4 +1,4 @@
-import { run, safeEnv } from '../proc';
+import { aiEnv, run } from '../proc';
 import {
   AdapterEvent,
   Artifacts,
@@ -39,7 +39,7 @@ export class CodexAdapter implements ProviderAdapter {
   }
 
   private exec(args: string[], timeoutMs = 20_000) {
-    return run(this.bin, args, { cwd: process.cwd(), env: safeEnv(), timeoutMs, shell: this.useShell });
+    return run(this.bin, args, { cwd: process.cwd(), env: aiEnv(!!this.opts.allowMeteredApi), timeoutMs, shell: this.useShell });
   }
 
   async detectInstallation() {
@@ -98,7 +98,7 @@ export class CodexAdapter implements ProviderAdapter {
 
     const done = run(this.bin, args, {
       cwd: input.cwd,
-      env: safeEnv(),
+      env: aiEnv(!!this.opts.allowMeteredApi),
       timeoutMs: input.timeoutMs,
       signal: session.abort.signal,
       stdin: input.prompt,
