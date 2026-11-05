@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'" />
+<title>EUM Desktop Engine</title>
+<style>
+  body { font-family: 'Malgun Gothic', sans-serif; margin: 0; background: #eef2f6; color: #14213d; font-size: 14px; }
+  main { padding: 18px; display: grid; gap: 14px; }
+  section { background: #fff; border: 1px solid #d5dce6; border-radius: 10px; padding: 14px; }
+  h1 { font-size: 18px; margin: 0; } h2 { font-size: 15px; margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  input { height: 32px; padding: 0 8px; border: 1px solid #d5dce6; border-radius: 6px; }
+  button { height: 34px; padding: 0 14px; border-radius: 6px; border: 1px solid #d5dce6; background: #fff; font-weight: 600; cursor: pointer; }
+  button.primary { background: #1f4fd8; border-color: #1f4fd8; color: #fff; }
+  .lamp { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: #d5dce6; }
+  .go { background: #17875a; } .wait { background: #b97f00; } .stop { background: #c8372b; }
+  pre { background: #101a30; color: #c9d4ea; padding: 10px; border-radius: 8px; height: 190px; overflow: auto; margin: 0; font-size: 12px; white-space: pre-wrap; }
+  ul { margin: 0; padding-left: 18px; } label { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <div class="row" style="justify-content: space-between">
+    <h1>EUM Desktop Engine</h1>
+    <div class="row"><span id="lamp" class="lamp"></span><strong id="conn">확인 중…</strong>
+      <button id="toggle"></button></div>
+  </div>
+  <section id="pairBox">
+    <h2>서버에 PC 등록</h2>
+    <p>웹의 [PC 연결] 화면에서 발급한 연결 코드를 입력하세요.</p>
+    <div class="row">
+      <input id="server" placeholder="https://서버주소" size="30" />
+      <input id="code" placeholder="XXXX-XXXX" size="12" />
+      <input id="name" placeholder="PC 이름" size="14" />
+      <button class="primary" id="pair">등록</button>
+    </div>
+    <p id="pairMsg"></p>
+  </section>
+  <section>
+    <h2>AI 도구 로그인 상태</h2>
+    <ul id="providers"><li>엔진을 시작하면 표시됩니다.</li></ul>
+    <h2 style="margin-top: 12px">실행 중인 작업</h2>
+    <ul id="tasks"><li>없음</li></ul>
+  </section>
+  <section>
+    <h2>설정</h2>
+    <div class="row">
+      <label>프로젝트 저장 경로 <input id="workspaceRoot" size="34" /></label>
+      <label>최대 동시 작업 <input id="maxConcurrency" type="number" min="1" max="8" style="width: 56px" /></label>
+    </div>
+    <div class="row" style="margin-top: 8px">
+      <label>CPU 제한(%) <input id="cpuLimitPercent" type="number" min="10" max="100" style="width: 64px" /></label>
+      <label>최소 여유 메모리(MB) <input id="minFreeMemMb" type="number" min="0" style="width: 80px" /></label>
+      <label><input id="autostart" type="checkbox" /> Windows 시작 시 자동 실행</label>
+      <button id="save">저장</button>
+    </div>
+  </section>
+  <section><h2>로그</h2><pre id="log"></pre></section>
+</main>
+<script>
+  const $ = (id) => document.getElementById(id);
+  let filled = false;
+  function render(s) {
+    const st = s.status;
+    const tone = !s.running ? 'stop' : !st?.connected ? 'wait' : st.paused ? 'wait' : 'go';
+    $('lamp').className = 'lamp ' + tone;
+    $('conn').textContent = !s.paired ? '미등록' : !s.running ? '엔진 중지됨' : !st?.connected ? '서버 연결 중…' : st.paused ? '일시정지 (웹에서 설정)' : '서버 연결됨';
+    $('toggle').textContent = s.running ? '엔진 중지 (작업 강제 중단)' : '엔진 시작';
+    $('toggle').disabled = !s.paired;
+    $('pairBox').style.display = s.paired ? 'none' : '';
+    $('providers').replaceChildren(...((st?.providers?.length ? st.providers : [null]).map((p) => {
+      const li = document.createElement('li');
+      li.textContent = !p ? '엔진을 시작하면 표시됩니다.' : `${p.displayName}: ${!p.installed ? '설치 안 됨' : !p.authenticated ? '로그인 필요' : p.executionPolicy.allowed ? '사용 가능' : '실행 제한 — ' + (p.executionPolicy.reason || '')}`;
+      return li;
+    })));
+    $('tasks').replaceChildren(...((st?.running?.length ? st.running : [null]).map((t) => {
+      const li = document.createElement('li');
+      li.textContent = t ? `[${t.project}] ${t.title}` : '없음';
+      return li;
+    })));
+    $('log').textContent = s.logs.join('\n');
+    $('log').scrollTop = $('log').scrollHeight;
+    if (!filled) {
+      filled = true;
+      for (const k of ['workspaceRoot', 'maxConcurrency', 'cpuLimitPercent', 'minFreeMemMb']) $(k).value = s.config[k] ?? '';
+      $('autostart').checked = s.autoStart;
+      $('server').value = s.config.serverUrl || '';
+    }
+  }
+  window.eum.state().then(render);
+  window.eum.onState(render);
+  $('toggle').onclick = async () => { const s = await window.eum.state(); s.running ? window.eum.stop() : window.eum.start(); };
+  $('pair').onclick = async () => {
+    $('pairMsg').textContent = '등록 중…';
+    const r = await window.eum.pair({ server: $('server').value.trim(), code: $('code').value.trim(), name: $('name').value.trim() });
+    $('pairMsg').textContent = r.message;
+    window.eum.state().then(render);
+  };
+  $('save').onclick = () => window.eum.settings(Object.fromEntries(['workspaceRoot', 'maxConcurrency', 'cpuLimitPercent', 'minFreeMemMb'].map((k) => [k, $(k).value])));
+  $('autostart').onchange = (e) => window.eum.autostart(e.target.checked);
+</script>
+</body>
+</html>

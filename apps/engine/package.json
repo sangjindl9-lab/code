@@ -1,0 +1,16 @@
+{
+  "name": "@eum/engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/src/cli.js",
+  "bin": { "eum-engine": "dist/src/cli.js" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/cli.js start",
+    "test": "tsc -p tsconfig.json && node --test --test-concurrency=1 --test-reporter=spec \"dist/test/**/*.test.js\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

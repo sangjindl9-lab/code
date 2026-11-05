@@ -1,0 +1,33 @@
+{
+  "name": "eum-desktop-engine",
+  "productName": "EUM Desktop Engine",
+  "version": "0.1.0",
+  "description": "EUM AI SOFTWARE FACTORY PRO — PC 개발 엔진",
+  "author": "EUM",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "prebuild": "npm --prefix .. run build",
+    "start": "npm run prebuild && electron .",
+    "dist": "npm run prebuild && electron-builder --win nsis"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "kr.eum.desktop-engine",
+    "directories": { "output": "release" },
+    "files": ["main.js", "preload.js", "index.html", "icon.png"],
+    "extraResources": [{ "from": "../dist", "to": "engine" }],
+    "win": { "target": "nsis", "icon": "icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "EUM Desktop Engine",
+      "uninstallDisplayName": "EUM Desktop Engine"
+    }
+  }
+}

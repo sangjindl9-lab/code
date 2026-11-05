@@ -1,0 +1,22 @@
+{
+  "packageId": "kr.eum.factory",
+  "host": "REPLACE_WITH_SERVER_HOST",
+  "name": "EUM AI 소프트웨어 공장",
+  "launcherName": "EUM 공장",
+  "display": "standalone",
+  "orientation": "portrait",
+  "themeColor": "#14213D",
+  "navigationColor": "#14213D",
+  "backgroundColor": "#EEF2F6",
+  "enableNotifications": false,
+  "startUrl": "/",
+  "iconUrl": "https://REPLACE_WITH_SERVER_HOST/icon-512.png",
+  "maskableIconUrl": "https://REPLACE_WITH_SERVER_HOST/icon-maskable-512.png",
+  "webManifestUrl": "https://REPLACE_WITH_SERVER_HOST/manifest.webmanifest",
+  "appVersionName": "0.1.0",
+  "appVersionCode": 1,
+  "signingKey": { "path": "./android.keystore", "alias": "eum" },
+  "minSdkVersion": 23,
+  "generatorApp": "bubblewrap-cli",
+  "fallbackType": "customtabs"
+}
