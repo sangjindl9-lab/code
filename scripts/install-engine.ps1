@@ -1,4 +1,4 @@
-# EUM Desktop Engine 설치 (Windows PowerShell)
+﻿# EUM Desktop Engine 설치 (Windows PowerShell)
 # 사용법: 저장소 폴더에서  powershell -ExecutionPolicy Bypass -File scripts\install-engine.ps1
 $ErrorActionPreference = "Stop"
 Set-Location (Split-Path $PSScriptRoot -Parent)

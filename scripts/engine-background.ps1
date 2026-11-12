@@ -1,4 +1,4 @@
-# EUM Desktop Engine 을 창 없이 백그라운드로 실행 / 로그인 시 자동 시작 (Windows, 관리자 권한 불필요)
+﻿# EUM Desktop Engine 을 창 없이 백그라운드로 실행 / 로그인 시 자동 시작 (Windows, 관리자 권한 불필요)
 #
 # 사용법 (저장소 폴더에서):
 #   powershell -ExecutionPolicy Bypass -File scripts\engine-background.ps1 install   # 자동 시작 등록 + 지금 바로 실행
