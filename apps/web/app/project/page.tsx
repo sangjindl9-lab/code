@@ -150,7 +150,7 @@ function ProjectView() {
       {waitingPc && (
         <Notice tone="wait">
           <strong>PC를 기다리고 있습니다.</strong>{' '}
-          {p.agent_name ? `담당 PC "${p.agent_name}"의 엔진이 켜지면 이어서 진행합니다.` : '연결된 PC가 없거나 AI 도구가 로그인되어 있지 않습니다.'}{' '}
+          {p.agent_name ? `담당 PC "${p.agent_name}"가 다른 작업을 끝내거나 엔진이 켜지면 이어서 진행합니다. 이 단계에 배정된 AI 도구가 그 PC에서 "사용 가능"인지도 확인하세요.` : '연결된 PC가 없거나, 이 단계에 배정된 AI 도구가 PC에서 "사용 가능" 상태가 아닙니다. PC가 다른 작업 중이면 순서를 기다립니다.'}{' '}
           <Link href="/agents/" className="font-semibold underline">PC 연결 상태 확인</Link>
         </Notice>
       )}

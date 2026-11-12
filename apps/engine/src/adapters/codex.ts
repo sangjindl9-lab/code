@@ -1,3 +1,6 @@
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import { aiEnv, run } from '../proc';
 import {
   AdapterEvent,
@@ -82,7 +85,27 @@ export class CodexAdapter implements ProviderAdapter {
         reason: 'Codex 가 종량제 API 키로 로그인되어 있습니다. 요금이 발생할 수 있어 실행하지 않습니다. ChatGPT 구독 계정으로 로그인하거나, 엔진 설정에서 종량제 사용을 명시적으로 허용하세요.',
       };
     }
+    if (!this.windowsSandboxConfigured()) {
+      return { allowed: false, mode: 'automatic', billing: 'subscription', reason: WINDOWS_SANDBOX_HINT };
+    }
     return { allowed: true, mode: 'automatic', billing: auth.method === 'api_key' ? 'metered' : 'subscription' };
+  }
+
+  /**
+   * Windows 에서 Codex CLI 는 전용 샌드박스([windows] sandbox = "elevated" | "unelevated")가 설정되어 있지 않으면
+   * 읽기 전용으로 동작해 파일을 쓰지 못하고 명령도 "blocked by policy" 로 거부합니다. 설정 파일만 읽어 확인합니다.
+   */
+  windowsSandboxConfigured(): boolean {
+    if (process.platform !== 'win32') return true;
+    try {
+      const home = process.env.CODEX_HOME || path.join(os.homedir(), '.codex');
+      const toml = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');
+      const section = toml.split(/^\s*\[/m).find((b) => /^windows\]/.test(b)) || '';
+      if (/^\s*sandbox\s*=\s*"(elevated|unelevated)"/m.test(section)) return true;
+      return /^\s*(elevated|experimental)_windows_sandbox\s*=\s*true/m.test(toml);
+    } catch {
+      return false;
+    }
   }
 
   async getUsageStatus() {
@@ -96,6 +119,8 @@ export class CodexAdapter implements ProviderAdapter {
     if (this.opts.model && /^[\w.\-:]+$/.test(this.opts.model)) args.push('--model', this.opts.model);
     args.push('-'); // 지시문은 표준 입력으로 전달 (명령줄 인용·주입 문제 방지)
 
+    let policyBlocked = false;
+    let fileChanges = 0;
     const done = run(this.bin, args, {
       cwd: input.cwd,
       env: aiEnv(!!this.opts.allowMeteredApi),
@@ -105,7 +130,9 @@ export class CodexAdapter implements ProviderAdapter {
       shell: this.useShell,
       onLine: (stream, line) => {
         if (!line.trim()) return;
+        if (/blocked by policy|read-only/i.test(line)) policyBlocked = true;
         const e = stream === 'stdout' ? parseCodexLine(line, session.artifacts) : ({ type: 'log', message: line } as AdapterEvent);
+        if (e?.type === 'file') fileChanges++;
         if (e) session.emit(e);
       },
     }).then((r) => {
@@ -113,6 +140,7 @@ export class CodexAdapter implements ProviderAdapter {
       if (r.spawnError) error = `Codex CLI 를 실행할 수 없습니다: ${r.spawnError}`;
       else if (r.timedOut) error = '작업 제한 시간을 초과했습니다.';
       else if (r.exitCode !== 0) error = (session.artifacts as any).lastError || `Codex 가 오류로 종료되었습니다. (종료 코드 ${r.exitCode})\n${r.tail.slice(-1500)}`;
+      else if (policyBlocked && fileChanges === 0) error = `Codex 가 읽기 전용 모드로 실행되어 파일을 쓰지 못했습니다. ${WINDOWS_SANDBOX_HINT}`;
       return { exitCode: r.spawnError ? 127 : r.exitCode, timedOut: r.timedOut, cancelled: r.aborted, error };
     });
     return { taskId: input.taskId, done };
@@ -132,6 +160,9 @@ export class CodexAdapter implements ProviderAdapter {
     return s?.artifacts ?? {};
   }
 }
+
+export const WINDOWS_SANDBOX_HINT =
+  'Windows 용 Codex 샌드박스가 설정되지 않았습니다. PC 의 %USERPROFILE%\\.codex\\config.toml 에 [windows] 섹션과 sandbox = "elevated" 를 추가한 뒤, 명령 창에서 codex 를 한 번 실행해 관리자 승인(초기 설정)을 마치고 엔진을 다시 시작하세요.';
 
 /** `codex exec --json` 의 JSONL 한 줄을 엔진 이벤트로 변환합니다. 모르는 형식은 원문 로그로 남깁니다. */
 export function parseCodexLine(line: string, artifacts: Artifacts & { lastError?: string } = {}): AdapterEvent | undefined {
