@@ -47,7 +47,7 @@ function Start-Engine() {
   Start-Process wscript.exe -ArgumentList "`"$vbs`"" -WindowStyle Hidden
   Start-Sleep -Seconds 3
   if (Running) { Write-Host "엔진이 백그라운드에서 실행 중입니다. 로그: $log" -ForegroundColor Green }
-  else { Write-Host "실행에 실패했습니다. 로그를 확인하세요: $log" -ForegroundColor Red; if (Test-Path $log) { Get-Content $log -Tail 20 } }
+  else { Write-Host "실행에 실패했습니다. 로그를 확인하세요: $log" -ForegroundColor Red; if (Test-Path $log) { Get-Content $log -Tail 20 -Encoding UTF8 } }
 }
 
 function Stop-Engine() {
@@ -74,10 +74,10 @@ switch ($Action) {
     $procs = @(Running)
     if ($procs.Count -gt 0) { Write-Host "실행 중 (PID $($procs.ProcessId -join ', '))" -ForegroundColor Green } else { Write-Host '중지됨' -ForegroundColor Yellow }
     Write-Host ("자동 시작: " + $(if (Test-Path $startupVbs) { '등록됨' } else { '등록 안 됨' }))
-    if (Test-Path $log) { Write-Host "--- 최근 로그 ($log) ---"; Get-Content $log -Tail 15 }
+    if (Test-Path $log) { Write-Host "--- 최근 로그 ($log) ---"; Get-Content $log -Tail 15 -Encoding UTF8 }
   }
   'log' {
     if (-not (Test-Path $log)) { Write-Host "아직 로그가 없습니다: $log"; return }
-    Get-Content $log -Tail 30 -Wait
+    Get-Content $log -Tail 30 -Wait -Encoding UTF8
   }
 }
