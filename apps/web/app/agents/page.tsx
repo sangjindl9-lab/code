@@ -99,7 +99,12 @@ export default function AgentsPage() {
             </li>
             <li className="p-4">
               <p className="font-semibold">2. PC에서 AI 도구에 로그인합니다</p>
-              <p className="mt-1 text-[0.95rem] text-mute">명령 창에서 <code className="font-mono">codex login</code> 을 실행해 본인의 ChatGPT 계정으로 로그인합니다. 로그인 정보는 PC에만 남고 서버로 전송되지 않습니다.</p>
+              <p className="mt-1 text-[0.95rem] text-mute">쓰려는 도구만 설치하고 본인의 구독 계정으로 로그인합니다. 로그인 정보는 PC에만 남고 서버로 전송되지 않습니다.</p>
+              <ul className="mt-2 space-y-1 text-[0.95rem] text-mute">
+                <li>Claude: <code className="font-mono">npm install -g @anthropic-ai/claude-code</code> 후 <code className="font-mono">claude</code> 실행 → 구독 계정 선택</li>
+                <li>GPT: <code className="font-mono">npm install -g @openai/codex</code> 후 <code className="font-mono">codex login</code></li>
+                <li>Gemini: antigravity.google/download 에서 Antigravity CLI 설치 후 <code className="font-mono">agy</code> 실행</li>
+              </ul>
             </li>
             <li className="p-4">
               <p className="font-semibold">3. 연결 코드를 발급해 PC에 입력합니다</p>
@@ -119,7 +124,7 @@ export default function AgentsPage() {
             </li>
             <li className="p-4">
               <p className="font-semibold">4. 엔진을 실행합니다</p>
-              <p className="mt-1 text-[0.95rem] text-mute"><code className="font-mono">eum-engine start</code> 를 실행하면 위 목록에 PC가 "연결됨"으로 표시됩니다. PC는 서버로 나가는 연결만 사용하므로 공유기 설정을 바꿀 필요가 없습니다.</p>
+              <p className="mt-1 text-[0.95rem] text-mute">저장소 폴더에서 <code className="font-mono">powershell -ExecutionPolicy Bypass -File scripts\engine-background.ps1 install</code> 을 실행하면 창 없이 백그라운드로 돌고 PC 로그인 때 자동 시작됩니다. (창에서 직접 보려면 <code className="font-mono">eum-engine start</code>) 위 목록에 PC가 "연결됨"으로 표시되면 끝입니다. PC는 서버로 나가는 연결만 사용하므로 공유기 설정을 바꿀 필요가 없습니다.</p>
             </li>
           </ol>
         </section>

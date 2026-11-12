@@ -30,9 +30,11 @@ docker compose up -d --build
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\install-engine.ps1
-npm install -g @openai/codex ; codex login        # 본인 ChatGPT 계정으로 로그인
+npm install -g @anthropic-ai/claude-code ; claude   # Claude 구독 계정 (또는)
+npm install -g @openai/codex ; codex login          # ChatGPT 구독 계정 (또는)
+# Gemini: https://antigravity.google/download 설치 후 agy 실행
 eum-engine pair --server https://서버주소 --code XXXX-XXXX   # 코드는 웹 [PC 연결]에서 발급
-eum-engine start
+powershell -ExecutionPolicy Bypass -File scripts\engine-background.ps1 install   # 창 없이 실행 + 로그인 시 자동 시작 (또는 eum-engine start)
 ```
 
 **3. 웹에서 [새로 만들기]** 로 프로그램 제작을 요청합니다.

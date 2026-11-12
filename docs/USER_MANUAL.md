@@ -13,9 +13,16 @@
 
 1. PC에 Node.js 20 이상과 Git을 설치합니다.
 2. 저장소 폴더에서 PowerShell로 `powershell -ExecutionPolicy Bypass -File scripts\install-engine.ps1` 을 실행합니다.
-3. `npm install -g @openai/codex` 로 Codex CLI를 설치하고 `codex login` 으로 **본인의 ChatGPT 계정**에 로그인합니다.
+3. 쓰려는 AI 도구를 설치하고 **본인의 구독 계정**으로 로그인합니다. 하나만 있어도 됩니다.
+   - Claude: `npm install -g @anthropic-ai/claude-code` → `claude` 실행 → "Claude account with subscription" 선택 → 브라우저 로그인
+   - GPT: `npm install -g @openai/codex` → `codex login`
+   - Gemini: https://antigravity.google/download 에서 Antigravity CLI 설치 → `agy` 실행해 Google 로그인
+   (API 키 로그인은 종량제 과금이므로 엔진이 기본으로 막습니다.)
 4. 웹의 **PC 연결 → 연결 코드 발급** 을 누르고, 화면에 나온 명령을 PC 명령 창에 붙여 넣습니다. 코드는 10분 동안 한 번만 쓸 수 있습니다.
-5. `eum-engine start` 를 실행합니다. 웹에 PC가 "연결됨", Codex가 "사용 가능"으로 보이면 준비가 끝났습니다.
+5. 엔진을 실행합니다. 웹에 PC가 "연결됨", AI 도구가 "사용 가능"으로 보이면 준비가 끝났습니다.
+   - 창 없이 백그라운드로 + PC 로그인 때 자동 시작(권장): 저장소 폴더에서 `powershell -ExecutionPolicy Bypass -File scripts\engine-background.ps1 install`
+     (`stop` 중지, `status` 상태·최근 로그, `log` 로그 실시간, `uninstall` 자동 시작 해제. 로그 파일: `%USERPROFILE%\.eum-engine\logs\engine.log`)
+   - 창에서 직접 보면서 실행: `eum-engine start` (창을 닫으면 멈춥니다)
 
 PC가 꺼져 있거나 엔진이 실행 중이 아니면 작업은 대기합니다. 켜면 이어서 진행합니다.
 
@@ -57,8 +64,8 @@ PC가 꺼져 있거나 엔진이 실행 중이 아니면 작업은 대기합니�
 
 | 증상 | 조치 |
 | --- | --- |
-| "PC를 기다리고 있습니다" | PC에서 `eum-engine start` 가 실행 중인지, 웹 PC 연결 화면에 "연결됨"인지 확인 |
-| Codex "로그인 필요" | PC에서 `codex login` |
+| "PC를 기다리고 있습니다" | PC에서 엔진이 실행 중인지(`engine-background.ps1 status`), 웹 PC 연결 화면에 "연결됨"인지 확인 |
+| AI 도구 "로그인 필요" | PC에서 `claude` / `codex login` / `agy` 로 다시 로그인 후 엔진 재시작 |
 | Codex "실행 제한" | API 키(종량제)로 로그인된 상태입니다. `codex logout` 후 ChatGPT 계정으로 다시 로그인 |
 | 프로젝트 "실패" | 빨간 안내의 사유를 확인하고 **다시 시도**. 검증 실패였다면 자동 수정 3회가 추가로 주어집니다 |
 | 멈추고 싶을 때 | **제작 중단**. PC에서 실행 중인 작업도 종료됩니다 |

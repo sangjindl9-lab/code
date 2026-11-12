@@ -66,10 +66,12 @@ export function run(cmd: string, args: string[], opts: RunOpts): Promise<RunResu
     if (opts.signal?.aborted) {
       return resolve({ exitCode: null, timedOut: false, aborted: true, tail: '', stdout: '', durationMs: 0 });
     }
-    const child = spawn(cmd, args, {
+    // shell 모드에서는 인자를 한 문자열로 합쳐 넘깁니다 (Node 24 DEP0190 경고 회피; 인자는 cliInvocation 에서 이미 따옴표 처리됨).
+    const useShell = opts.shell ?? false;
+    const child = spawn(useShell ? [cmd, ...args].join(' ') : cmd, useShell ? [] : args, {
       cwd: opts.cwd,
       env: opts.env ?? safeEnv(),
-      shell: opts.shell ?? false,
+      shell: useShell,
       detached: process.platform !== 'win32',
       windowsHide: true,
       stdio: ['pipe', 'pipe', 'pipe'],
