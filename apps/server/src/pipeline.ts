@@ -364,6 +364,21 @@ export class Pipeline {
     const out = await this.db.tx(async (q) => {
       const a = await q.one('SELECT paused FROM desktop_agents WHERE id = $1 AND revoked_at IS NULL', [agent.id]);
       if (!a || a.paused) return null;
+      // 이 PC 에서 한도에 걸린 AI 도구가 맡고 있는 대기 작업은, 쓸 수 있는 다른 도구로 넘깁니다.
+      const limited = await q.q(
+        `SELECT key FROM ai_providers WHERE agent_id = $1 AND limited_until > now()`,
+        [agent.id],
+      );
+      for (const { key } of limited as any[]) {
+        const alt = await this.fallbackProvider(q, agent.id, key);
+        if (!alt || !providers.includes(alt)) continue;
+        await q.q(
+          `UPDATE ai_tasks t SET provider_key = $3, not_before = NULL, result = COALESCE(t.result, '{}'::jsonb) || jsonb_build_object('switchedFrom', $4::text, 'switchedTo', $3::text)
+             FROM projects p WHERE p.id = t.project_id AND p.organization_id = $1 AND (p.agent_id IS NULL OR p.agent_id = $2)
+              AND t.status = 'queued' AND t.kind = 'ai' AND t.provider_key = $4`,
+          [agent.orgId, agent.id, alt, key],
+        );
+      }
       const cand = await q.one(
         `SELECT t.id, t.project_id FROM ai_tasks t JOIN projects p ON p.id = t.project_id
           WHERE p.organization_id = $1 AND p.status = 'running' AND t.status = 'queued'
@@ -479,6 +494,7 @@ export class Pipeline {
 
       let ok = false;
       let reason = '';
+      let switchedTo: string | undefined;
       const cancelled = body.cancelled || t.cancel_requested;
 
       if (cancelled) {
@@ -568,23 +584,44 @@ export class Pipeline {
       } else if (t.kind === 'verify' && (body.tests.length > 0 || body.exitCode === 0)) {
         await this.onVerifyFailed(q, after, t, p, body);
       } else if (t.kind === 'ai' && body.retryAfterSec) {
-        // 구독 사용량 한도: 시도 횟수를 소모하지 않고 초기화 시각 이후 자동 재개
+        // 구독 사용량 한도: 시도 횟수를 소모하지 않습니다. 같은 PC 에 쓸 수 있는 다른 AI 도구가 있으면 즉시 넘기고, 없으면 초기화 시각까지 보류합니다.
         const sec = Math.max(60, body.retryAfterSec);
         const resumeAt = new Date(Date.now() + sec * 1000);
-        await finish('queued', { retrying: true, rateLimited: true, resumeAt: resumeAt.toISOString() });
-        await q.q(`UPDATE ai_tasks SET max_attempts = max_attempts + 1, not_before = now() + make_interval(secs => $2) WHERE id = $1`, [t.id, sec]);
-        const when = resumeAt.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: true });
-        await this.notify(q, after, p.orgId, t.project_id, 'warning', `[${p.name}] AI 사용량 한도 도달`, `${t.title}: ${reason.slice(0, 300)}\n${when} 이후 자동으로 다시 시작합니다.`);
+        await q.q(`UPDATE ai_providers SET limited_until = now() + make_interval(secs => $3) WHERE agent_id = $1 AND key = $2`, [agent.id, t.provider_key, sec]);
+        const alt = await this.fallbackProvider(q, agent.id, t.provider_key);
+        if (alt) {
+          switchedTo = alt;
+          await finish('queued', { retrying: true, switchedFrom: t.provider_key, switchedTo: alt });
+          await q.q(`UPDATE ai_tasks SET max_attempts = max_attempts + 1, provider_key = $2, not_before = NULL WHERE id = $1`, [t.id, alt]);
+          await this.notify(q, after, p.orgId, t.project_id, 'info', `[${p.name}] AI 도구 전환`, `${t.provider_key} 사용량 한도에 도달해 ${t.title} 작업을 ${alt} 로 넘겨 계속 진행합니다.`);
+        } else {
+          await finish('queued', { retrying: true, rateLimited: true, resumeAt: resumeAt.toISOString() });
+          await q.q(`UPDATE ai_tasks SET max_attempts = max_attempts + 1, not_before = now() + make_interval(secs => $2) WHERE id = $1`, [t.id, sec]);
+          const when = resumeAt.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: true });
+          await this.notify(q, after, p.orgId, t.project_id, 'warning', `[${p.name}] AI 사용량 한도 도달`, `${t.title}: ${reason.slice(0, 300)}\n대신 쓸 수 있는 다른 AI 도구가 없어 ${when} 이후 자동으로 다시 시작합니다.`);
+        }
       } else if (t.attempt_count < t.max_attempts) {
         await finish('queued', { retrying: true });
       } else {
         await finish('failed');
       }
       await this.advance(q, t.project_id, after);
-      return { accepted: true, ok, reason };
+      return { accepted: true, ok, reason, switchedTo };
     });
     after.forEach((f) => f());
     return out;
+  }
+
+  /** 같은 PC 에서 지금 쓸 수 있는(설치·로그인·정책 허용·한도 아님) 다른 AI 도구. 코드 작업 적합도 순으로 고릅니다. */
+  private async fallbackProvider(q: Q, agentId: string, except: string): Promise<string | undefined> {
+    const rows = await q.q(
+      `SELECT key FROM ai_providers WHERE agent_id = $1 AND key <> $2 AND key <> 'mock' AND installed AND authenticated
+          AND (execution_policy->>'allowed') = 'true' AND (limited_until IS NULL OR limited_until <= now())`,
+      [agentId, except],
+    );
+    const order = ['claude', 'codex', 'antigravity'];
+    const keys = rows.map((r: any) => r.key as string).sort((a, b) => (order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99));
+    return keys[0];
   }
 
   /** 기획 결과(TASKS.json)를 실제 개발 작업으로 분할합니다. 형식이 잘못되면 단일 구현 작업으로 진행합니다. */

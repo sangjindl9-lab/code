@@ -96,8 +96,14 @@ export class Engine {
   }
 
   /** 실행 가능한(설치·로그인·정책 허용) AI 도구만 서버에 알립니다. */
+  /** 구독 사용량 한도에 걸린 AI 도구 → 재개 가능 시각. 그때까지는 서버에 '사용 가능' 으로 알리지 않아 다른 도구가 대신 배정됩니다. */
+  private limitedUntil = new Map<string, number>();
+
   private usableProviders(): string[] {
-    return this.providers.filter((p) => p.installed && p.authenticated && p.executionPolicy.allowed === true).map((p) => p.key);
+    const now = Date.now();
+    return this.providers
+      .filter((p) => p.installed && p.authenticated && p.executionPolicy.allowed === true && (this.limitedUntil.get(p.key) ?? 0) <= now)
+      .map((p) => p.key);
   }
 
   private resourcesOk(): boolean {
@@ -186,6 +192,12 @@ export class Engine {
             const c = r as ClaimedTask;
             this.log(`작업 수신: [${c.project.name}] ${c.task.title}`);
             const done = runTask({ api: this.api, workspaceRoot: this.cfg.workspaceRoot, adapters: this.adapters, log: this.log }, c, this.stopCtl.signal)
+              .then((r) => {
+                if (r?.retryAfterSec && c.task.providerKey) {
+                  this.limitedUntil.set(c.task.providerKey, Date.now() + r.retryAfterSec * 1000);
+                  this.log(`AI 도구 ${c.task.providerKey}: 사용량 한도 — ${new Date(Date.now() + r.retryAfterSec * 1000).toLocaleTimeString('ko-KR')} 까지 다른 도구를 사용합니다.`);
+                }
+              })
               .catch((e) => this.log(`작업 실행 오류: ${e.message}`))
               .finally(() => {
                 this.active.delete(c.task.id);

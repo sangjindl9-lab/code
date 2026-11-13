@@ -418,6 +418,23 @@ test('사용량 한도: 한도 도달 보고는 시도 횟수를 소모하지 �
   assert.ok(notes.some((n: any) => n.title.includes('사용량 한도')));
 });
 
+test('사용량 한도: 같은 PC 에 다른 AI 도구가 있으면 즉시 그 도구로 넘겨 계속 진행한다', async () => {
+  const u = await newUser();
+  const pid = await newProject(u);
+  const agent = await newAgent(u);
+  const prov = (key: string) => ({ key, displayName: key, installed: true, authenticated: true, executionPolicy: { allowed: true } });
+  await http('POST', '/api/agent/heartbeat', agent.token, { providers: [prov('codex'), prov('claude')] });
+  const t = (await claim(agent.token)).body.task; // 기본 배정: codex
+  assert.equal(t.providerKey, 'codex');
+  const r = await complete(agent.token, t.id, { attemptNo: 1, exitCode: 1, error: 'usage limit reached', retryAfterSec: 3600 });
+  assert.equal(r.body.switchedTo, 'claude');
+  const next = (await http('POST', '/api/agent/claim', agent.token, { providers: ['claude'] })).body.task;
+  assert.ok(next, '전환된 작업이 즉시 배정되어야 함');
+  assert.equal(next.key, 'plan');
+  assert.equal(next.providerKey, 'claude');
+  assert.equal(next.attemptNo, 2);
+});
+
 test('감사 로그: 주요 행위가 기록된다', async () => {
   const rows = await db.q<{ action: string }>('SELECT DISTINCT action FROM audit_logs');
   const have = new Set(rows.map((r) => r.action));

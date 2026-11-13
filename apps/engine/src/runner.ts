@@ -84,7 +84,7 @@ async function sha256File(file: string): Promise<string> {
 }
 
 /** 임대받은 작업 하나를 실행하고 결과(사실)를 서버에 보고합니다. 성공 여부는 서버가 판정합니다. */
-export async function runTask(deps: RunnerDeps, claimed: ClaimedTask, engineStop: AbortSignal): Promise<void> {
+export async function runTask(deps: RunnerDeps, claimed: ClaimedTask, engineStop: AbortSignal): Promise<{ retryAfterSec?: number } | void> {
   const { task, project } = claimed;
   const { api } = deps;
   const sink = new EventSink(api, task.id, task.attemptNo);
@@ -223,7 +223,9 @@ export async function runTask(deps: RunnerDeps, claimed: ClaimedTask, engineStop
   try {
     const r = await withRetry(() => api.post(`/api/agent/tasks/${task.id}/complete`, report, 60_000), { tries: 10 });
     deps.log(`작업 ${task.key} 보고 완료 → ${r.accepted ? (r.ok ? '성공' : `실패: ${r.reason}`) : '무시됨(이미 처리됨)'}`);
+    if (r.switchedTo) deps.log(`작업 ${task.key}: ${task.providerKey} 사용량 한도로 ${r.switchedTo} 에 넘겨 계속 진행합니다.`);
   } catch (e: any) {
     deps.log(`작업 ${task.key} 결과 보고 실패: ${e.message} (서버가 임대 만료 후 작업을 복구합니다)`);
   }
+  return report.retryAfterSec ? { retryAfterSec: report.retryAfterSec } : undefined;
 }

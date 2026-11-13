@@ -30,6 +30,7 @@ function taskTone(t: any): { label: string; tone: Tone } {
   if (t.status === 'failed' && t.superseded_by) return { label: '실패 → 자동 수정함', tone: 'idle' };
   if (t.status === 'queued' && t.result?.rateLimited)
     return { label: `AI 사용량 한도 — ${t.result.resumeAt ? new Date(t.result.resumeAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '잠시'} 후 자동 재개`, tone: 'wait' };
+  if (t.status === 'queued' && t.result?.switchedTo) return { label: `${t.result.switchedFrom} 한도 → ${t.result.switchedTo} 로 전환`, tone: 'wait' };
   if (t.status === 'queued' && t.result?.retrying) return { label: '다시 시도 대기', tone: 'wait' };
   return TASK_STATUS[t.status];
 }
