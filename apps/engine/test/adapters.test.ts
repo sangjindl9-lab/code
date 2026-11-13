@@ -181,3 +181,13 @@ out({ event: 'result', payload: { status: 'SUCCESS', num_turns: 1 } });`);
   assert.equal(policy.allowed, false);
   assert.deepEqual(await new AntigravityAdapter({ binary: '/nonexistent/agy' }).detectInstallation(), { installed: false });
 });
+
+test('구독 한도 문구에서 재개까지 남은 초를 추정한다', () => {
+  const { rateLimitRetryAfterSec } = require('../src/adapters/types');
+  const now = new Date(2026, 10, 12, 23, 31, 0); // 23:31 로컬
+  const sec = rateLimitRetryAfterSec("You've hit your 5-hour limit · resets 2:40am (Asia/Seoul)", now);
+  assert.ok(sec > 3 * 3600 && sec < 3.3 * 3600, `sec=${sec}`); // 약 3시간 9분 + 2분 여유
+  assert.equal(rateLimitRetryAfterSec('rate limit exceeded', now), 1800);
+  assert.equal(rateLimitRetryAfterSec('syntax error in file', now), undefined);
+  assert.equal(rateLimitRetryAfterSec(undefined, now), undefined);
+});

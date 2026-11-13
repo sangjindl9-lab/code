@@ -32,11 +32,33 @@ export interface TaskResult {
   timedOut: boolean;
   cancelled: boolean;
   error?: string;
+  /** 구독 사용량 한도 등으로 실패했을 때, 몇 초 뒤에 다시 시도하면 되는지 (시도 횟수를 소모하지 않음) */
+  retryAfterSec?: number;
 }
 
 export interface TaskHandle {
   taskId: string;
   done: Promise<TaskResult>;
+}
+
+/**
+ * 오류 문구에서 구독 사용량 한도 도달 여부와 재개까지 남은 초를 추정합니다.
+ * 예) "You've hit your 5-hour limit · resets 2:40am (Asia/Seoul)" → 초기화 시각까지의 초(+2분 여유). 시각을 못 읽으면 30분.
+ */
+export function rateLimitRetryAfterSec(message: string | undefined, now = new Date()): number | undefined {
+  if (!message) return undefined;
+  if (!/hit your .*limit|usage limit|rate limit|rate_limit|too many requests|quota .*exceeded|한도/i.test(message)) return undefined;
+  const m = /resets?\s+(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i.exec(message);
+  if (!m) return 30 * 60;
+  let h = Number(m[1]);
+  const min = Number(m[2] || 0);
+  const ap = (m[3] || '').toLowerCase();
+  if (ap === 'pm' && h < 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  const t = new Date(now);
+  t.setHours(h, min, 0, 0);
+  if (t.getTime() <= now.getTime()) t.setDate(t.getDate() + 1);
+  return Math.min(24 * 3600, Math.max(60, Math.round((t.getTime() - now.getTime()) / 1000) + 120));
 }
 
 export interface Artifacts {

@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { aiEnv, run } from '../proc';
+import { rateLimitRetryAfterSec } from './types';
 import {
   AdapterEvent,
   Artifacts,
@@ -141,7 +142,7 @@ export class CodexAdapter implements ProviderAdapter {
       else if (r.timedOut) error = '작업 제한 시간을 초과했습니다.';
       else if (r.exitCode !== 0) error = (session.artifacts as any).lastError || `Codex 가 오류로 종료되었습니다. (종료 코드 ${r.exitCode})\n${r.tail.slice(-1500)}`;
       else if (policyBlocked && fileChanges === 0) error = `Codex 가 읽기 전용 모드로 실행되어 파일을 쓰지 못했습니다. ${WINDOWS_SANDBOX_HINT}`;
-      return { exitCode: r.spawnError ? 127 : r.exitCode, timedOut: r.timedOut, cancelled: r.aborted, error };
+      return { exitCode: r.spawnError ? 127 : r.exitCode, timedOut: r.timedOut, cancelled: r.aborted, error, retryAfterSec: rateLimitRetryAfterSec(error) };
     });
     return { taskId: input.taskId, done };
   }

@@ -1,5 +1,5 @@
 import { aiEnv, cliInvocation, run, RunResult } from '../proc';
-import { AdapterEvent, Artifacts, ProviderAdapter, TaskHandle, TaskInput, TaskResult, TaskSession, Capabilities, ExecutionPolicy } from './types';
+import { AdapterEvent, Artifacts, ProviderAdapter, TaskHandle, TaskInput, TaskResult, TaskSession, Capabilities, ExecutionPolicy, rateLimitRetryAfterSec } from './types';
 
 export interface CliOptions {
   binary?: string;
@@ -73,7 +73,13 @@ export abstract class CliAdapter implements ProviderAdapter {
         error = artifacts.lastError || `${this.displayName} 이(가) 오류로 종료되었습니다. (종료 코드 ${r.exitCode})\n${r.tail.slice(-1500)}`;
         if (exitCode === 0) exitCode = 1; // 도구가 0 으로 끝났어도 결과가 실패면 실패로 보고
       }
-      return { exitCode, timedOut: r.timedOut, cancelled: r.aborted, error };
+      let retryAfterSec = rateLimitRetryAfterSec(error);
+      const rl = (artifacts as any).rateLimit;
+      if (error && rl?.resetsAt && rl.status && rl.status !== 'allowed') {
+        const sec = Math.round((new Date(rl.resetsAt).getTime() - Date.now()) / 1000) + 120;
+        if (sec > 0) retryAfterSec = Math.min(24 * 3600, sec);
+      }
+      return { exitCode, timedOut: r.timedOut, cancelled: r.aborted, error, retryAfterSec };
     });
     return { taskId: input.taskId, done };
   }

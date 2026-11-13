@@ -401,6 +401,23 @@ test('취소: 대기 작업은 즉시 취소되고 실행 중 작업에는 중�
   assert.ok(s.tasks.every((x) => x.status === 'cancelled'));
 });
 
+test('사용량 한도: 한도 도달 보고는 시도 횟수를 소모하지 않고 재개 시각까지 배정을 미룬다', async () => {
+  const u = await newUser();
+  const pid = await newProject(u);
+  const agent = await newAgent(u);
+  const t = (await claim(agent.token)).body.task;
+  const r = await complete(agent.token, t.id, { attemptNo: 1, exitCode: 1, error: "You've hit your 5-hour limit · resets 2:40am", retryAfterSec: 3600 });
+  assert.equal(r.body.accepted, true);
+  let s = await tasksOf(u, pid);
+  const plan = s.tasks.find((x) => x.key === 'plan');
+  assert.equal(plan.status, 'queued');
+  assert.equal(plan.result.rateLimited, true);
+  assert.equal(plan.max_attempts, 4); // 시도 횟수 보전
+  assert.equal((await claim(agent.token)).body.task, null); // 재개 시각 전에는 배정되지 않음
+  const notes = (await http('GET', '/api/notifications', u)).body;
+  assert.ok(notes.some((n: any) => n.title.includes('사용량 한도')));
+});
+
 test('감사 로그: 주요 행위가 기록된다', async () => {
   const rows = await db.q<{ action: string }>('SELECT DISTINCT action FROM audit_logs');
   const have = new Set(rows.map((r) => r.action));

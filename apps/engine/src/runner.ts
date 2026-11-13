@@ -140,6 +140,7 @@ export async function runTask(deps: RunnerDeps, claimed: ClaimedTask, engineStop
       await adapter.collectArtifacts(handle);
       report.exitCode = result.exitCode ?? 1;
       if (result.error) report.error = result.error;
+      if (result.retryAfterSec) report.retryAfterSec = result.retryAfterSec;
       if (result.timedOut) timedOut = true;
       // AI 의 응답과 별개로, 실제 파일·Git 변경을 사실로 수집합니다.
       if (!abort.signal.aborted || timedOut) {

@@ -28,6 +28,8 @@ const EV_STYLE: Record<string, string> = {
 
 function taskTone(t: any): { label: string; tone: Tone } {
   if (t.status === 'failed' && t.superseded_by) return { label: '실패 → 자동 수정함', tone: 'idle' };
+  if (t.status === 'queued' && t.result?.rateLimited)
+    return { label: `AI 사용량 한도 — ${t.result.resumeAt ? new Date(t.result.resumeAt).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '잠시'} 후 자동 재개`, tone: 'wait' };
   if (t.status === 'queued' && t.result?.retrying) return { label: '다시 시도 대기', tone: 'wait' };
   return TASK_STATUS[t.status];
 }
@@ -110,7 +112,8 @@ function ProjectView() {
   const done = d.tasks.filter((t: any) => t.status === 'succeeded').length;
   const total = d.tasks.filter((t: any) => !t.superseded_by).length;
   const failedTask = d.tasks.find((t: any) => t.status === 'failed' && !t.superseded_by);
-  const waitingPc = p.status === 'running' && !d.tasks.some((t: any) => t.status === 'running') && d.tasks.some((t: any) => t.status === 'queued');
+  const rateLimitedTask = d.tasks.find((t: any) => t.status === 'queued' && t.result?.rateLimited && t.result?.resumeAt && new Date(t.result.resumeAt) > new Date());
+  const waitingPc = !rateLimitedTask && p.status === 'running' && !d.tasks.some((t: any) => t.status === 'running') && d.tasks.some((t: any) => t.status === 'queued');
   const latestRun = d.testRuns[0];
   const fixes = d.tasks.filter((t: any) => t.key.startsWith('fix-'));
   const curRuns = current ? d.testRuns.filter((r: any) => r.task_id === current.id) : [];
@@ -147,6 +150,11 @@ function ProjectView() {
       </details>
 
       {error && <Notice tone="stop">{error}</Notice>}
+      {rateLimitedTask && (
+        <Notice tone="wait">
+          <strong>AI 구독 사용량 한도에 도달했습니다.</strong> 「{rateLimitedTask.title}」은(는) {new Date(rateLimitedTask.result.resumeAt).toLocaleString('ko-KR', { hour: '2-digit', minute: '2-digit' })} 이후 자동으로 다시 시작합니다. 재시도 횟수는 소모되지 않습니다.
+        </Notice>
+      )}
       {waitingPc && (
         <Notice tone="wait">
           <strong>PC를 기다리고 있습니다.</strong>{' '}

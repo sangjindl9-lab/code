@@ -80,6 +80,8 @@ export const completeSchema = z.object({
   attemptNo: z.number().int().positive(),
   exitCode: z.number().int().nullable().default(null),
   error: z.string().max(20000).optional(),
+  /** 구독 사용량 한도 등: 이 초가 지난 뒤 다시 시도 (시도 횟수를 소모하지 않음) */
+  retryAfterSec: z.number().int().min(0).max(86400).optional(),
   cancelled: z.boolean().optional(),
   gitBefore: z.string().max(80).optional(),
   gitAfter: z.string().max(80).optional(),
@@ -365,6 +367,7 @@ export class Pipeline {
       const cand = await q.one(
         `SELECT t.id, t.project_id FROM ai_tasks t JOIN projects p ON p.id = t.project_id
           WHERE p.organization_id = $1 AND p.status = 'running' AND t.status = 'queued'
+            AND (t.not_before IS NULL OR t.not_before <= now())
             AND (p.agent_id IS NULL OR p.agent_id = $2)
             AND (t.kind <> 'ai' OR t.provider_key = ANY($3::text[]))
             AND NOT EXISTS (SELECT 1 FROM ai_tasks r WHERE r.project_id = t.project_id AND r.status = 'running')
@@ -564,6 +567,14 @@ export class Pipeline {
         if (t.key === 'plan') await this.expandPlan(q, after, t, p, body.files['docs/TASKS.json']?.content);
       } else if (t.kind === 'verify' && (body.tests.length > 0 || body.exitCode === 0)) {
         await this.onVerifyFailed(q, after, t, p, body);
+      } else if (t.kind === 'ai' && body.retryAfterSec) {
+        // 구독 사용량 한도: 시도 횟수를 소모하지 않고 초기화 시각 이후 자동 재개
+        const sec = Math.max(60, body.retryAfterSec);
+        const resumeAt = new Date(Date.now() + sec * 1000);
+        await finish('queued', { retrying: true, rateLimited: true, resumeAt: resumeAt.toISOString() });
+        await q.q(`UPDATE ai_tasks SET max_attempts = max_attempts + 1, not_before = now() + make_interval(secs => $2) WHERE id = $1`, [t.id, sec]);
+        const when = resumeAt.toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: true });
+        await this.notify(q, after, p.orgId, t.project_id, 'warning', `[${p.name}] AI 사용량 한도 도달`, `${t.title}: ${reason.slice(0, 300)}\n${when} 이후 자동으로 다시 시작합니다.`);
       } else if (t.attempt_count < t.max_attempts) {
         await finish('queued', { retrying: true });
       } else {
