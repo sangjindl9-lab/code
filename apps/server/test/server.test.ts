@@ -200,7 +200,7 @@ test('중복 방지: 같은 완료 보고·이벤트를 다시 보내도 한 번
 
 test('작업 분할: 유효한 TASKS.json 은 의존성이 있는 개발 작업으로 확장된다', async () => {
   const u = await newUser();
-  const pid = await newProject(u);
+  const pid = await newProject(u, { splitTasks: true });
   const agent = await newAgent(u);
   const t = (await claim(agent.token)).body.task;
   const tasksJson = JSON.stringify({
@@ -220,7 +220,7 @@ test('작업 분할: 유효한 TASKS.json 은 의존성이 있는 개발 작업�
   assert.equal(s.tasks[3].role, 'frontend');
   assert.equal(s.tasks.find((x) => x.key === 'verify-1').depends_on.length, 3);
   // 잘못된 TASKS.json 이면 단일 구현 작업을 유지한다
-  const pid2 = await newProject(u);
+  const pid2 = await newProject(u, { splitTasks: true });
   const u2tasks = async () => (await tasksOf(u, pid2)).tasks.map((x) => x.key);
   await complete(agent.token, (await claimFor(agent.token, pid2)).id, { attemptNo: 1, exitCode: 0, changedFiles: ['a'], files: planFiles('{broken') });
   assert.deepEqual(await u2tasks(), ['plan', 'implement', 'verify-1', 'package']);

@@ -20,7 +20,7 @@ const PLATFORMS = ['Windows', 'Android', '웹 브라우저', 'Linux 서버'];
 const EXAMPLE = '전기통신공사업체에서 사용할 ERP를 만들어줘. 공사등록, 계약, 자재발주, 검측, 기성관리, 정산 기능이 필요해.';
 
 export default function NewProjectPage() {
-  const [f, setF] = useState({ name: '', description: '', kind: 'web', platforms: ['웹 브라우저'] as string[], urls: '', priority: 'normal', automationMode: 'semi' });
+  const [f, setF] = useState({ name: '', description: '', kind: 'web', platforms: ['웹 브라우저'] as string[], urls: '', priority: 'normal', automationMode: 'semi', splitTasks: false });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -30,7 +30,7 @@ export default function NewProjectPage() {
     setError('');
     try {
       const referenceUrls = f.urls.split(/\s+/).map((s) => s.trim()).filter(Boolean);
-      const r = await api('POST', '/api/projects', { name: f.name, description: f.description, kind: f.kind, platforms: f.platforms, referenceUrls, priority: f.priority, automationMode: f.automationMode });
+      const r = await api('POST', '/api/projects', { name: f.name, description: f.description, kind: f.kind, platforms: f.platforms, referenceUrls, priority: f.priority, automationMode: f.automationMode, splitTasks: f.splitTasks });
       location.href = `/project/?id=${r.id}`;
     } catch (err: any) {
       setError(err.message);
@@ -98,6 +98,14 @@ export default function NewProjectPage() {
             ))}
           </div>
         </fieldset>
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-line bg-panel p-3">
+          <input type="checkbox" className="mt-1 accent-cobalt" checked={f.splitTasks} onChange={(e) => setF({ ...f, splitTasks: e.target.checked })} />
+          <span>
+            <span className="font-semibold">큰 프로젝트: 작업을 여러 AI 세션으로 나눠 진행</span>
+            <span className="block text-sm text-mute">기본(끄기)은 기획 뒤 한 세션에서 전체를 구현해 AI 사용량이 적고 결과가 일관됩니다. 기능이 매우 많은 프로젝트에서만 켜세요.</span>
+          </span>
+        </label>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div>

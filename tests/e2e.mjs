@@ -71,6 +71,7 @@ const createProject = (token, extra = {}) =>
     description: '더하기와 곱하기를 지원하는 계산기 모듈을 만들어 주세요.',
     kind: 'api',
     automationMode: 'auto',
+    splitTasks: true, // E2E 는 분할 경로(dev-1, dev-2 …)까지 검증
     ...extra,
   }).then((r) => r.id);
 
@@ -179,7 +180,7 @@ async function happyPath() {
   // 대시보드에 PC·AI 상태가 보인다
   const dash = await api('GET', '/api/dashboard', s.token);
   assert.equal(dash.agents[0].status, 'online');
-  assert.deepEqual(dash.agents[0].providers.map((p) => p.key).sort(), ['codex', 'mock']);
+  assert.deepEqual(dash.agents[0].providers.map((p) => p.key).sort(), ['antigravity', 'claude', 'codex', 'mock']);
   assert.equal(dash.counts.completed, 1);
   engine.kill('SIGTERM');
 }

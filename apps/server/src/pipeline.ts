@@ -114,6 +114,8 @@ export const createProjectSchema = z.object({
   referenceUrls: z.array(z.string().url().max(500)).max(10).default([]),
   priority: z.enum(['low', 'normal', 'high']).default('normal'),
   automationMode: z.enum(['manual', 'semi', 'auto']).default('semi'),
+  /** true: TASKS.json 의 작업마다 별도 AI 세션(큰 프로젝트용). false(기본): 한 세션에서 전체 구현 */
+  splitTasks: z.boolean().default(false),
 });
 
 const clean = (s: string) => s.replace(/\u0000/g, '');
@@ -141,7 +143,7 @@ export class Pipeline {
     return def?.provider_key || 'codex';
   }
 
-  private async brief(q: Q, projectId: string): Promise<ProjectBrief & { orgId: string; maxFix: number; mode: string; status: string }> {
+  private async brief(q: Q, projectId: string): Promise<ProjectBrief & { orgId: string; maxFix: number; mode: string; status: string; splitTasks: boolean }> {
     const p = await q.one('SELECT * FROM projects WHERE id = $1', [projectId]);
     return {
       name: p.name,
@@ -152,6 +154,7 @@ export class Pipeline {
       orgId: p.organization_id,
       maxFix: p.max_fix_attempts,
       mode: p.automation_mode,
+      splitTasks: p.split_tasks === true,
       status: p.status,
     };
   }
@@ -221,8 +224,8 @@ export class Pipeline {
     const after: After = [];
     const id = await this.db.tx(async (q) => {
       const p = await q.one(
-        `INSERT INTO projects (organization_id, created_by, name, description, kind, platforms, reference_urls, priority, automation_mode, max_fix_attempts)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,
+        `INSERT INTO projects (organization_id, created_by, name, description, kind, platforms, reference_urls, priority, automation_mode, split_tasks, max_fix_attempts)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,
            COALESCE((SELECT (value #>> '{}')::int FROM system_settings WHERE key = 'default_max_fix_attempts'), 3))
          RETURNING id`,
         [
@@ -235,6 +238,7 @@ export class Pipeline {
           input.referenceUrls,
           input.priority,
           input.automationMode,
+          input.splitTasks,
         ],
       );
       await q.q(`INSERT INTO project_requirements (project_id, source_type, content) VALUES ($1,'text',$2)`, [
@@ -266,7 +270,7 @@ export class Pipeline {
         providerKey: await this.providerFor(q, user.orgId, 'backend'),
         prompt: implementAllPrompt(b),
         spec: { requireChanges: true, placeholder: true },
-        timeoutSec: 7200,
+        timeoutSec: 3 * 3600,
         dependsOn: [plan],
       });
       const verify = await this.insertTask(q, {
@@ -502,12 +506,7 @@ export class Pipeline {
       } else if (t.kind === 'ai') {
         const required: string[] = t.spec?.requiredFiles || [];
         const missing = required.filter((f) => !body.files[f]?.exists);
-        const priorChanges = await q.one(
-          `SELECT 1 FROM ai_task_attempts a JOIN ai_tasks x ON x.id = a.task_id
-            WHERE x.project_id = $1 AND x.key LIKE 'dev-%' AND a.status = 'succeeded' AND jsonb_array_length(a.changed_files) > 0 LIMIT 1`,
-          [t.project_id],
-        );
-        const needChanges = t.spec?.requireChanges === true || !priorChanges;
+        const needChanges = t.spec?.requireChanges !== false; // 모든 AI 작업은 실제 변경이 있어야 통과 (빈손 '완료' 차단)
         if (body.exitCode !== 0) reason = body.error || `AI 도구가 오류로 종료되었습니다. (종료 코드 ${body.exitCode})`;
         else if (missing.length) reason = `필수 산출물이 생성되지 않았습니다: ${missing.join(', ')}`;
         else if (needChanges && body.changedFiles.length === 0) reason = 'AI는 완료했다고 응답했지만 실제로 변경된 파일이 없습니다.';
@@ -626,6 +625,7 @@ export class Pipeline {
 
   /** 기획 결과(TASKS.json)를 실제 개발 작업으로 분할합니다. 형식이 잘못되면 단일 구현 작업으로 진행합니다. */
   private async expandPlan(q: Q, after: After, planTask: any, p: Awaited<ReturnType<Pipeline['brief']>>, text?: string) {
+    if (!p.splitTasks) return; // 기본: 한 세션에서 전체 구현 (TASKS.json 은 구현 세션이 체크리스트로 사용)
     const parsed = parseTasksJson(text);
     if (!parsed.tasks) {
       await this.notify(q, after, p.orgId, planTask.project_id, 'info', `[${p.name}] 작업 분할 생략`, `TASKS.json 을 사용할 수 없어 단일 구현 작업으로 진행합니다. (${parsed.error})`);
@@ -655,7 +655,7 @@ export class Pipeline {
         kind: 'ai',
         providerKey: await this.providerFor(q, p.orgId, role),
         prompt: devPrompt(p, t, n, parsed.tasks.length),
-        spec: { planId: t.id, targetFiles: t.targetFiles, doneWhen: t.doneWhen, testWhen: t.testWhen, requireChanges: n === 1 },
+        spec: { planId: t.id, targetFiles: t.targetFiles, doneWhen: t.doneWhen, testWhen: t.testWhen, requireChanges: true },
         timeoutSec: 3600,
         dependsOn: t.dependsOn.length ? t.dependsOn.map((d) => idMap.get(d)!) : [planTask.id],
       });
